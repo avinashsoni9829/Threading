@@ -1,55 +1,47 @@
-package com.example.demo.learning;
+package org.example.semaphores;
 
 import java.util.concurrent.locks.ReentrantLock;
 
-public class DeadLockDetection {
+public class DeadLockTest {
     public static void main(String[] args) throws InterruptedException {
-        ReentrantLock firstLock = new ReentrantLock(true);
-        ReentrantLock secondLock = new ReentrantLock(true);
+        ReentrantLock lock1=  new ReentrantLock(true);
+        ReentrantLock lock2 = new ReentrantLock(true);
 
-        Thread firstThread = createThread("thread - 1" , firstLock , secondLock);
-        Thread secondThread = createThread("thread - 2", secondLock,firstLock);
+        Thread first = createThread("first",lock1,lock2);
+        Thread second = createThread("second",lock2,lock1);
 
-        firstThread.start();
-        secondThread.start();
-
-        firstThread.join();
-        secondThread.join();
+        first.start();
+        second.start();
+        first.join();
+        second.join();
     }
 
-    public static Thread createThread (String name , ReentrantLock primaryLock,ReentrantLock secondaryLock)
-    {
-         return new Thread(() -> {
-              primaryLock.lock(); // take the primary lock
+    private static Thread createThread(String threadName, ReentrantLock lock1, ReentrantLock lock2) {
+        return  new Thread(() -> {
+            System.out.println("thread Being Created = " + threadName );
+            lock1.lock();
+            System.out.println( threadName + " lock is Acquired on top ");
+            synchronized (DeadLockTest.class){
+                System.out.println( threadName + " entered the critical Section  ");
+                DeadLockTest.class.notify();
 
-             // enter  the  critical section
-              synchronized (DeadLockDetection.class){
-                  // notify the threads
-                   DeadLockDetection.class.notify();
+                if(!lock2.isLocked()){
 
-                  // check if the secondary lock is not allowed to take a lock
-                  // or not
-                  if(!secondaryLock.isLocked()){
+                    try {
+                        DeadLockTest.class.wait();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
 
+                }
 
-                      // if the lock is not acquired then wait
-                        try{
-                             DeadLockDetection.class.wait();
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
-                        }
-                        // now take the lock
-                        secondaryLock.lock();
+                lock2.lock();
+                System.out.println( threadName + " second lock is acquired  in critical section ");
+            }
 
-                        System.out.println(name + "created");
-                        // release the locks
-                        primaryLock.unlock();
-                        secondaryLock.unlock();
-                   }
-              }
-         });
-
-
-
+            System.out.println(threadName + "completed");
+            lock1.unlock();
+            lock2.unlock();
+        });
     }
 }
